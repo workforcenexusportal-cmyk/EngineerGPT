@@ -6,17 +6,20 @@ import enum
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.core.config import settings
 
 ALGORITHM = "HS256"
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# bcrypt operates on at most 72 bytes; longer inputs are truncated consistently
+# for both hashing and verification.
+_BCRYPT_MAX_BYTES = 72
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/token")
 
 
@@ -38,11 +41,16 @@ class TokenData(BaseModel):
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    pw = plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    try:
+        pw = plain.encode("utf-8")[:_BCRYPT_MAX_BYTES]
+        return bcrypt.checkpw(pw, hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def create_access_token(data: TokenData, expires_minutes: int | None = None) -> str:

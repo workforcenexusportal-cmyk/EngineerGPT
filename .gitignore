@@ -26,6 +26,11 @@ npm-debug.log*
 backend/storage/
 storage/
 
+# Local SQLite dev database
+*.db
+*.db-journal
+*.sqlite3
+
 # IDE / OS
 .vscode/
 .idea/

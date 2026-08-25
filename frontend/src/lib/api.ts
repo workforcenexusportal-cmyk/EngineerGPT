@@ -225,3 +225,48 @@ export async function searchKnowledge(
   if (!res.ok) return parseError(res);
   return (await res.json()) as AgentResult;
 }
+
+// ---------------------------------------------------------------------------
+// Text-analysis agent modules
+// ---------------------------------------------------------------------------
+async function postAgent(
+  path: string,
+  body: unknown,
+  token: string,
+): Promise<AgentResult> {
+  const res = await fetch(`${API_V1}${path}`, {
+    method: "POST",
+    headers: { ...authHeader(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as AgentResult;
+}
+
+export function analyzeFailure(
+  body: { dtc_codes: string[]; sensor_data: Record<string, number>; logs: string },
+  token: string,
+): Promise<AgentResult> {
+  return postAgent("/failure-analysis/analyze", body, token);
+}
+
+export function reviewRequirements(
+  requirements: string,
+  token: string,
+): Promise<AgentResult> {
+  return postAgent("/requirements/review", { requirements }, token);
+}
+
+export function prepareMeeting(
+  body: { topic: string; context: string; open_issues: string[] },
+  token: string,
+): Promise<AgentResult> {
+  return postAgent("/meeting-prep/prepare", body, token);
+}
+
+export function reviewDesign(
+  body: { design: string; specifications: string },
+  token: string,
+): Promise<AgentResult> {
+  return postAgent("/design-review/review", body, token);
+}

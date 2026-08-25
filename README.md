@@ -21,16 +21,16 @@ evidence-based, and citation-backed.
 
 | # | Module | Status |
 |---|--------------------------------|-----------------|
-| 1 | **AI Test Report Agent** (MVP) | ✅ Implemented |
-| 2 | Engineering Knowledge Hub | 🧱 Scaffolded |
-| 3 | Failure Analysis Agent | 🧱 Scaffolded |
-| 4 | Requirements Intelligence | 🧱 Scaffolded |
-| 5 | Meeting Preparation Agent | 🧱 Scaffolded |
-| 6 | Design Review Agent | 🧱 Scaffolded |
+| 1 | **AI Test Report Agent** | ✅ Implemented |
+| 2 | Engineering Knowledge Hub (RAG) | ✅ Implemented |
+| 3 | Failure Analysis Agent | ✅ Implemented |
+| 4 | Requirements Intelligence | ✅ Implemented |
+| 5 | Meeting Preparation Agent | ✅ Implemented |
+| 6 | Design Review Agent | ✅ Implemented |
 
-The **AI Test Report Agent** is the first shipped product (MVP). The remaining
-modules share the same clean-architecture module contract so they can be filled
-in incrementally without structural changes.
+All six modules are implemented end-to-end (backend agent + REST + UI) and share
+the same clean-architecture module contract. The Knowledge Hub provides full
+RAG: document ingestion (PDF/CSV/TXT) → chunk → embed → vector search.
 
 ---
 
@@ -92,24 +92,48 @@ docker compose up --build
 You can also copy `.env.example` to `.env` to override any default; Compose loads
 it automatically. `.env` is optional — the stack launches with sane defaults.
 
-## Local development (optional — requires Python 3.11+ and Node 20+)
+## Quick start (no Docker — local SQLite, zero external services)
 
-**Backend**
-```bash
+Don't have Docker? The stack runs fully locally on **SQLite** with a deterministic
+**mock AI** provider — no Postgres, Redis, or API key required. When `POSTGRES_HOST`
+is unset the app auto-selects SQLite and stores embeddings as JSON with in-Python
+cosine similarity; on Postgres it uses `pgvector`. Nothing else changes.
+
+**Backend** (Python 3.11+)
+```powershell
 cd backend
-python -m venv .venv && . .venv/Scripts/activate   # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m venv .venv
+.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-python -m scripts.init_db      # creates pgvector extension + tables
-uvicorn app.main:app --reload
-pytest
+
+# .env for local dev (SQLite + mock AI + seeded admin)
+#   ENVIRONMENT=development
+#   AI_PROVIDER=mock
+#   ADMIN_EMAIL=admin@engineergpt.local
+#   ADMIN_PASSWORD=admin1234
+#   ADMIN_FULL_NAME=Local Admin
+#   SECRET_KEY=local-dev-secret-not-for-production
+
+python -m scripts.init_db      # creates SQLite tables (skips pgvector on sqlite)
+python -m scripts.seed_admin   # creates the admin login from ADMIN_* vars
+uvicorn app.main:app --reload  # http://127.0.0.1:8000
+pytest                         # 24 tests, all green
 ```
 
-**Frontend**
-```bash
+**Frontend** (Node 20+)
+```powershell
 cd frontend
 npm install
-npm run dev
+npm run dev                    # http://localhost:3000
 ```
+
+Sign in at http://localhost:3000 with `admin@engineergpt.local` / `admin1234`.
+All six modules work offline in mock mode; set `OPENAI_API_KEY` and
+`AI_PROVIDER=openai` in `backend/.env` to switch to live AI.
+
+> On locked-down corporate npm setups where `.bin` shims aren't created, run the
+> Next.js CLI directly: `node node_modules\next\dist\bin\next dev`
+> (and `... next build` for production builds).
 
 ### One-command shortcuts (Make)
 

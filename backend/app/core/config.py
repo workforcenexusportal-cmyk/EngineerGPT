@@ -28,11 +28,16 @@ class Settings(BaseSettings):
     project_name: str = "EngineerGPT"
 
     # --- Database ---
+    # When POSTGRES_HOST is set (Docker/production) a Postgres+pgvector URL is
+    # built. Otherwise the app runs fully locally on a SQLite file — no external
+    # services required. Set DATABASE_URL to override either behavior explicitly.
+    database_url_override: str = Field(default="", alias="DATABASE_URL")
     postgres_user: str = "engineergpt"
     postgres_password: str = "engineergpt"
     postgres_db: str = "engineergpt"
-    postgres_host: str = "localhost"
+    postgres_host: str = ""
     postgres_port: int = 5432
+    sqlite_path: str = "./engineergpt.db"
 
     # --- Redis ---
     redis_url: str = "redis://localhost:6379/0"
@@ -63,10 +68,19 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
-            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
-        )
+        if self.database_url_override:
+            return self.database_url_override
+        if self.postgres_host:
+            return (
+                f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+        return f"sqlite:///{self.sqlite_path}"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
 
     @computed_field  # type: ignore[prop-decorator]
     @property

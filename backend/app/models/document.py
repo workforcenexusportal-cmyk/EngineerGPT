@@ -5,12 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config import settings
 from app.core.database import Base
+from app.models.types import Embedding
 
 
 def _uuid() -> str:
@@ -48,6 +48,6 @@ class DocumentChunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
-    embedding: Mapped[list[float]] = mapped_column(Vector(settings.embedding_dimensions))
+    embedding: Mapped[list[float]] = mapped_column(Embedding(settings.embedding_dimensions))
 
     document: Mapped[Document] = relationship(back_populates="chunks")

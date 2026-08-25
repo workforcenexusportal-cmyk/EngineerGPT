@@ -1,10 +1,13 @@
 """Knowledge Hub service: embed the query, retrieve nearest chunks, synthesize.
 
-Retrieval uses pgvector cosine distance. The AI answer is constrained to the
+Retrieval uses pgvector cosine distance on PostgreSQL and a portable in-Python
+cosine ranking on SQLite/other backends. The AI answer is constrained to the
 retrieved context so it cannot fabricate beyond the corpus.
 """
 
 from __future__ import annotations
+
+import math
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
@@ -87,12 +90,10 @@ def semantic_search(
     *, db: Session, provider: AIProvider, query: str, top_k: int = 5
 ) -> AgentResult:
     query_vec = provider.embed([query])[0]
-    stmt = (
-        select(DocumentChunk)
-        .order_by(DocumentChunk.embedding.cosine_distance(query_vec))
-        .limit(top_k)
-    )
-    hits = db.execute(stmt).scalars().all()
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        hits = _search_pgvector(db, query_vec, top_k)
+    else:
+        hits = _search_python(db, query_vec, top_k)
 
     if not hits:
         return AgentResult(
@@ -119,3 +120,36 @@ def semantic_search(
         insights=[AIInsight(statement=answer.strip(), confidence=0.7, citations=citations)],
         generated_by=provider.name,
     )
+
+
+def _search_pgvector(
+    db: Session, query_vec: list[float], top_k: int
+) -> list[DocumentChunk]:
+    """Native pgvector nearest-neighbour search (cosine distance)."""
+    stmt = (
+        select(DocumentChunk)
+        .order_by(DocumentChunk.embedding.cosine_distance(query_vec))
+        .limit(top_k)
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def _search_python(
+    db: Session, query_vec: list[float], top_k: int
+) -> list[DocumentChunk]:
+    """Portable cosine-similarity search for SQLite / non-pgvector backends.
+
+    Scans the chunk table and ranks in Python. Suitable for local/dev corpora;
+    production uses the indexed pgvector path above.
+    """
+    chunks = list(db.execute(select(DocumentChunk)).scalars().all())
+    q_norm = math.sqrt(sum(v * v for v in query_vec)) or 1.0
+
+    def similarity(chunk: DocumentChunk) -> float:
+        vec = chunk.embedding
+        dot = sum(a * b for a, b in zip(query_vec, vec, strict=False))
+        norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+        return dot / (q_norm * norm)
+
+    ranked = sorted(chunks, key=similarity, reverse=True)
+    return ranked[:top_k]

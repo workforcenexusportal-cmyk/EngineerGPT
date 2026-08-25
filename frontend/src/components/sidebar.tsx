@@ -19,10 +19,10 @@ const NAV = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
   { href: "/test-report", label: "Test Report Agent", icon: FileBarChart, ready: true },
   { href: "/knowledge", label: "Knowledge Hub", icon: BookOpen, ready: true },
-  { href: "/failure-analysis", label: "Failure Analysis", icon: ShieldAlert },
-  { href: "/requirements", label: "Requirements", icon: ClipboardCheck },
-  { href: "/meeting-prep", label: "Meeting Prep", icon: Users },
-  { href: "/design-review", label: "Design Review", icon: Activity },
+  { href: "/failure-analysis", label: "Failure Analysis", icon: ShieldAlert, ready: true },
+  { href: "/requirements", label: "Requirements", icon: ClipboardCheck, ready: true },
+  { href: "/meeting-prep", label: "Meeting Prep", icon: Users, ready: true },
+  { href: "/design-review", label: "Design Review", icon: Activity, ready: true },
 ];
 
 export function Sidebar() {
