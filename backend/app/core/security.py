@@ -1,0 +1,96 @@
+"""Authentication, password hashing, JWT, and role-based access control."""
+
+from __future__ import annotations
+
+import enum
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel
+
+from app.core.config import settings
+
+ALGORITHM = "HS256"
+
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/token")
+
+
+class Role(enum.StrEnum):
+    ADMIN = "admin"
+    MANAGER = "manager"
+    ENGINEER = "engineer"
+    VIEWER = "viewer"
+
+
+# Privilege ordering — higher index grants everything below it.
+_ROLE_RANK = {Role.VIEWER: 0, Role.ENGINEER: 1, Role.MANAGER: 2, Role.ADMIN: 3}
+
+
+class TokenData(BaseModel):
+    sub: str
+    role: Role
+    org_id: str | None = None
+
+
+def hash_password(plain: str) -> str:
+    return _pwd_context.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return _pwd_context.verify(plain, hashed)
+
+
+def create_access_token(data: TokenData, expires_minutes: int | None = None) -> str:
+    expire = datetime.now(UTC) + timedelta(
+        minutes=expires_minutes or settings.access_token_expire_minutes
+    )
+    payload = {
+        "sub": data.sub,
+        "role": data.role.value,
+        "org_id": data.org_id,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def decode_token(token: str) -> TokenData:
+    credentials_error = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        subject = payload.get("sub")
+        role = payload.get("role")
+        if subject is None or role is None:
+            raise credentials_error
+        return TokenData(sub=subject, role=Role(role), org_id=payload.get("org_id"))
+    except (JWTError, ValueError) as exc:
+        raise credentials_error from exc
+
+
+def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]) -> TokenData:
+    return decode_token(token)
+
+
+CurrentUser = Annotated[TokenData, Depends(get_current_user)]
+
+
+def require_role(minimum: Role):
+    """Dependency factory enforcing a minimum role in the privilege hierarchy."""
+
+    def _guard(user: CurrentUser) -> TokenData:
+        if _ROLE_RANK[user.role] < _ROLE_RANK[minimum]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires '{minimum.value}' role or higher",
+            )
+        return user
+
+    return _guard

@@ -1,0 +1,14 @@
+# Keep the Docker build context small and reproducible — never ship host artifacts.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+storage/
+.env
+.env.*
+!.env.example
+tests/

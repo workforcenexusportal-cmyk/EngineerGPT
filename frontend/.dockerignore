@@ -1,0 +1,8 @@
+# Keep the Docker build context small — deps are installed inside the image.
+node_modules/
+.next/
+out/
+.env
+.env.*
+!.env.example
+npm-debug.log*
