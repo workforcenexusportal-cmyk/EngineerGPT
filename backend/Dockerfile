@@ -20,5 +20,5 @@ RUN useradd -m appuser && mkdir -p /app/storage && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
-# Initialize the schema (idempotent, with retry) then launch the API server.
-CMD ["sh", "-c", "python -m scripts.init_db && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Wait for Postgres, apply migrations, seed the admin (idempotent), then serve.
+CMD ["sh", "-c", "python -m scripts.wait_for_db && alembic upgrade head && python -m scripts.seed_admin && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

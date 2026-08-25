@@ -110,3 +110,118 @@ export async function exportTestReportPdf(
   if (!res.ok) return parseError(res);
   return res.blob();
 }
+
+// ---------------------------------------------------------------------------
+// Authentication
+// ---------------------------------------------------------------------------
+export interface AuthUser {
+  sub: string;
+  role: "admin" | "manager" | "engineer" | "viewer";
+  org_id: string | null;
+}
+
+/** Exchange email + password for a bearer token (OAuth2 password grant). */
+export async function login(email: string, password: string): Promise<string> {
+  const form = new URLSearchParams();
+  form.append("username", email);
+  form.append("password", password);
+
+  const res = await fetch(`${API_V1}/auth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+  });
+  if (!res.ok) return parseError(res);
+  const body = (await res.json()) as { access_token: string };
+  return body.access_token;
+}
+
+/** Fetch the current user described by the token. */
+export async function getMe(token: string): Promise<AuthUser> {
+  const res = await fetch(`${API_V1}/auth/me`, { headers: authHeader(token) });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as AuthUser;
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge Hub (documents + RAG search)
+// ---------------------------------------------------------------------------
+export interface DocumentSummary {
+  id: string;
+  filename: string;
+  extension: string;
+  mime: string;
+  size_bytes: number;
+  status: string;
+  chunk_count: number;
+  created_at: string;
+}
+
+export interface Citation {
+  source: string;
+  locator: string | null;
+  excerpt: string | null;
+}
+
+export interface AIInsight {
+  statement: string;
+  confidence: number;
+  citations: Citation[];
+}
+
+export interface AgentResult {
+  module: string;
+  summary: string;
+  insights: AIInsight[];
+  generated_by: string;
+}
+
+/** List ingested documents in the current org's corpus. */
+export async function listDocuments(token: string): Promise<DocumentSummary[]> {
+  const res = await fetch(`${API_V1}/knowledge/documents`, {
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as DocumentSummary[];
+}
+
+/** Upload + ingest a document (extract → chunk → embed → persist). */
+export async function uploadDocument(
+  file: File,
+  token: string,
+): Promise<DocumentSummary> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_V1}/knowledge/documents`, {
+    method: "POST",
+    headers: authHeader(token),
+    body: form,
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as DocumentSummary;
+}
+
+/** Delete a document and its chunks. */
+export async function deleteDocument(id: string, token: string): Promise<void> {
+  const res = await fetch(`${API_V1}/knowledge/documents/${id}`, {
+    method: "DELETE",
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+}
+
+/** Run a grounded RAG query over the ingested corpus. */
+export async function searchKnowledge(
+  query: string,
+  topK: number,
+  token: string,
+): Promise<AgentResult> {
+  const res = await fetch(`${API_V1}/knowledge/search`, {
+    method: "POST",
+    headers: { ...authHeader(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ query, top_k: topK }),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as AgentResult;
+}

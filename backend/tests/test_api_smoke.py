@@ -21,6 +21,7 @@ def test_openapi_lists_all_modules():
     for expected in [
         "/test-report/analyze",
         "/knowledge/search",
+        "/knowledge/documents",
         "/failure-analysis/analyze",
         "/requirements/review",
         "/meeting-prep/prepare",
@@ -33,3 +34,8 @@ def test_openapi_lists_all_modules():
 def test_protected_endpoint_requires_auth():
     resp = client.post("/api/v1/requirements/review", json={"requirements": "R1 shall..."})
     assert resp.status_code == 401
+
+
+def test_document_endpoints_require_auth():
+    assert client.get("/api/v1/knowledge/documents").status_code == 401
+    assert client.post("/api/v1/knowledge/documents").status_code == 401

@@ -6,6 +6,7 @@ COMPOSE ?= docker compose
 .DEFAULT_GOAL := help
 .PHONY: help up down build rebuild logs ps restart \
         backend-install backend-test backend-lint backend-type backend-check init-db \
+        migrate migration seed-admin \
         frontend-install frontend-dev frontend-build frontend-lint \
         check clean
 
@@ -42,8 +43,17 @@ restart: down up ## Restart the stack
 backend-install: ## Install backend deps (editable + dev extras)
 	cd backend && pip install -e ".[dev]"
 
-init-db: ## Create pgvector extension + tables
+init-db: ## Create pgvector extension + tables (dev shortcut; prefer migrate)
 	cd backend && python -m scripts.init_db
+
+migrate: ## Apply Alembic migrations to head
+	cd backend && alembic upgrade head
+
+migration: ## Autogenerate a new migration (make migration m="message")
+	cd backend && alembic revision --autogenerate -m "$(m)"
+
+seed-admin: ## Create the admin user from ADMIN_EMAIL/ADMIN_PASSWORD (idempotent)
+	cd backend && python -m scripts.seed_admin
 
 backend-test: ## Run backend tests
 	cd backend && pytest -q

@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 50
     storage_dir: str = "./storage"
 
+    # --- Seed admin (created idempotently on startup when both are set) ---
+    admin_email: str = "admin@engineergpt.local"
+    admin_password: str = ""
+    admin_full_name: str = "EngineerGPT Admin"
+
     # --- CORS ---
     cors_origins: list[str] = ["http://localhost:3000"]
 
