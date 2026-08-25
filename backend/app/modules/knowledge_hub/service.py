@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.prompts import BASE_ENGINEERING_SYSTEM
 from app.ai.provider import AIProvider
+from app.core.config import settings
 from app.core.domain import AgentResult, AIInsight, Citation
 from app.models.document import Document, DocumentChunk
 from app.pipeline.ingestion import ingest
@@ -90,7 +91,7 @@ def semantic_search(
     *, db: Session, provider: AIProvider, query: str, top_k: int = 5
 ) -> AgentResult:
     query_vec = provider.embed([query])[0]
-    if db.bind is not None and db.bind.dialect.name == "postgresql":
+    if settings.pgvector_enabled:
         hits = _search_pgvector(db, query_vec, top_k)
     else:
         hits = _search_python(db, query_vec, top_k)

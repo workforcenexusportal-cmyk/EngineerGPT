@@ -149,6 +149,39 @@ make help            # list all targets
 
 ---
 
+## Deploy to production (Fly.io)
+
+Fly builds the images on **remote builders**, so you don't need Docker locally.
+
+```powershell
+# 1. Install the CLI and sign in
+iwr https://fly.io/install.ps1 -useb | iex
+fly auth login
+
+# 2. One-command deploy (backend + frontend + managed Postgres)
+.\deploy\fly-deploy.ps1 -Region iad -AiProvider azure
+```
+
+The script provisions two Fly apps plus a managed Postgres, wires `DATABASE_URL`,
+prompts for secrets **locally** (admin password, Azure OpenAI endpoint/key and
+deployment names), generates a strong `SECRET_KEY`, sets CORS to the frontend
+origin, and deploys both services. When it finishes you get:
+
+- Frontend → `https://<web-app>.fly.dev`
+- Backend  → `https://<api-app>.fly.dev/docs`
+
+**Database & vectors.** Production defaults to portable embedding storage (JSON +
+in-Python cosine) so it runs on **any** managed Postgres with zero extensions.
+To switch to native `pgvector` for scale: connect as the Postgres superuser, run
+`CREATE EXTENSION vector;` in the app database, then
+`fly secrets set --app <api-app> USE_PGVECTOR=true` and redeploy.
+
+**Real AI.** With `-AiProvider azure` (or `openai`) the app calls the live model;
+omit credentials to run in deterministic mock mode. Provider is swapped purely
+via secrets — no code changes.
+
+---
+
 ## Contributing & branch protection
 
 CI runs on every push and pull request (`ruff` + `mypy` + `pytest` for the

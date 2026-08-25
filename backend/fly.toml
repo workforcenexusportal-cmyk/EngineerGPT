@@ -1,0 +1,32 @@
+# Fly.io config for the EngineerGPT backend (FastAPI).
+# App name must be globally unique — change it if `engineergpt-api` is taken.
+# Deploy from the backend/ directory:  fly deploy
+app = "engineergpt-api"
+primary_region = "iad"   # change to your nearest region, e.g. lhr, fra, sjc
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENVIRONMENT = "production"
+  # AI + DB secrets are set via `fly secrets set ...` (never committed here).
+  # USE_PGVECTOR stays false unless you run `CREATE EXTENSION vector` first.
+  USE_PGVECTOR = "false"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

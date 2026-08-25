@@ -14,6 +14,8 @@ from typing import Any
 from sqlalchemy import Text
 from sqlalchemy.types import TypeDecorator
 
+from app.core.config import settings
+
 
 class Embedding(TypeDecorator[list[float]]):
     """A float-vector column that adapts to the active database dialect."""
@@ -26,7 +28,7 @@ class Embedding(TypeDecorator[list[float]]):
         self.dimensions = dimensions
 
     def load_dialect_impl(self, dialect: Any) -> Any:
-        if dialect.name == "postgresql":
+        if dialect.name == "postgresql" and settings.use_pgvector:
             from pgvector.sqlalchemy import Vector
 
             return dialect.type_descriptor(Vector(self.dimensions))
@@ -37,13 +39,13 @@ class Embedding(TypeDecorator[list[float]]):
     ) -> Any:
         if value is None:
             return None
-        if dialect.name == "postgresql":
+        if dialect.name == "postgresql" and settings.use_pgvector:
             return value  # pgvector's own bind processor handles the list
         return json.dumps(list(value))
 
     def process_result_value(self, value: Any, dialect: Any) -> list[float] | None:
         if value is None:
             return None
-        if dialect.name == "postgresql":
+        if dialect.name == "postgresql" and settings.use_pgvector:
             return list(value)
         return list(json.loads(value))

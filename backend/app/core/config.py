@@ -13,6 +13,21 @@ from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _normalize_db_url(url: str) -> str:
+    """Coerce a bare Postgres URL to the psycopg (v3) SQLAlchemy driver.
+
+    Managed hosts (Fly, Render, Heroku) inject ``DATABASE_URL`` as
+    ``postgres://`` or ``postgresql://`` without a driver. SQLAlchemy 2.0 needs
+    an explicit driver, so we normalize to ``postgresql+psycopg://``. Non-Postgres
+    URLs (e.g. sqlite) are returned unchanged.
+    """
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://") :]
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
@@ -38,6 +53,11 @@ class Settings(BaseSettings):
     postgres_host: str = ""
     postgres_port: int = 5432
     sqlite_path: str = "./engineergpt.db"
+    # Use native pgvector on Postgres (requires the `vector` extension). When
+    # False the app stores embeddings as JSON text and runs cosine similarity in
+    # Python — portable to any Postgres/SQLite with zero extensions. Enable this
+    # only once `CREATE EXTENSION vector` has been run on the target database.
+    use_pgvector: bool = False
 
     # --- Redis ---
     redis_url: str = "redis://localhost:6379/0"
@@ -69,7 +89,7 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.database_url_override:
-            return self.database_url_override
+            return _normalize_db_url(self.database_url_override)
         if self.postgres_host:
             return (
                 f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
@@ -81,6 +101,17 @@ class Settings(BaseSettings):
     @property
     def is_sqlite(self) -> bool:
         return self.database_url.startswith("sqlite")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_postgres(self) -> bool:
+        return self.database_url.startswith("postgresql")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def pgvector_enabled(self) -> bool:
+        """Native pgvector is used only on Postgres and when explicitly enabled."""
+        return self.is_postgres and self.use_pgvector
 
     @computed_field  # type: ignore[prop-decorator]
     @property

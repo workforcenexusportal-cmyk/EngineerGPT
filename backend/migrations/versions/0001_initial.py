@@ -11,7 +11,6 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from pgvector.sqlalchemy import Vector
 
 from app.core.config import settings
 
@@ -21,8 +20,20 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _embedding_column() -> sa.Column:
+    """Native pgvector column when enabled, else a portable JSON/Text column."""
+    if settings.use_pgvector:
+        from pgvector.sqlalchemy import Vector
+
+        return sa.Column(
+            "embedding", Vector(settings.embedding_dimensions), nullable=False
+        )
+    return sa.Column("embedding", sa.Text(), nullable=False)
+
+
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    if settings.use_pgvector:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     op.create_table(
         "users",
@@ -60,7 +71,7 @@ def upgrade() -> None:
         sa.Column("document_id", sa.String(length=36), nullable=False),
         sa.Column("chunk_index", sa.Integer(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("embedding", Vector(settings.embedding_dimensions), nullable=False),
+        _embedding_column(),
         sa.ForeignKeyConstraint(
             ["document_id"], ["documents.id"], ondelete="CASCADE"
         ),

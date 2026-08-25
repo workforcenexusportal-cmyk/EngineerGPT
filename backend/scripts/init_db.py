@@ -16,6 +16,7 @@ from sqlalchemy.exc import OperationalError
 
 # Import models so they register on Base.metadata.
 import app.models  # noqa: F401
+from app.core.config import settings
 from app.core.database import Base, engine
 from app.core.logging import configure_logging, get_logger
 
@@ -33,7 +34,7 @@ def main(max_retries: int = 30, delay_seconds: float = 2.0) -> None:
     for attempt in range(1, max_retries + 1):
         try:
             with engine.begin() as conn:
-                if conn.dialect.name == "postgresql":
+                if conn.dialect.name == "postgresql" and settings.use_pgvector:
                     conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
             Base.metadata.create_all(bind=engine)
             logger.info("schema_created", extra={"extra_fields": {"attempt": attempt}})
