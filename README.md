@@ -2,6 +2,11 @@
 
 > **AI Operating System for Manufacturing Engineers**
 
+[![CI](https://github.com/workforcenexusportal-cmyk/EngineerGPT/actions/workflows/ci.yml/badge.svg)](https://github.com/workforcenexusportal-cmyk/EngineerGPT/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB.svg)](backend/pyproject.toml)
+[![Next.js 15](https://img.shields.io/badge/Next.js-15-000000.svg)](frontend/package.json)
+
 EngineerGPT is a specialized AI platform that reduces engineering documentation
 effort, accelerates analysis, preserves company knowledge, and provides
 AI-powered engineering agents for manufacturing, validation, test, design, and
@@ -105,6 +110,35 @@ cd frontend
 npm install
 npm run dev
 ```
+
+### One-command shortcuts (Make)
+
+If you have GNU Make (native on Linux/macOS; use Git Bash or WSL on Windows):
+
+```bash
+make up              # build + run the whole stack in Docker
+make check           # run every CI gate locally (lint + type + test + build)
+make backend-test    # backend tests only
+make down            # stop the stack
+make help            # list all targets
+```
+
+---
+
+## Contributing & branch protection
+
+CI runs on every push and pull request (`ruff` + `mypy` + `pytest` for the
+backend, `lint` + `build` for the frontend). Recommended repository settings on
+GitHub → **Settings → Branches → Add branch ruleset** for `main`:
+
+- ✅ Require a pull request before merging (at least 1 approval).
+- ✅ Require status checks to pass — select the **backend** and **frontend** CI jobs.
+- ✅ Require branches to be up to date before merging.
+- ✅ Require conversation resolution before merging.
+- ✅ Block force pushes and deletions of `main`.
+
+Do development on feature branches and open PRs into `main`; the same checks you
+run locally with `make check` gate the merge.
 
 ---
 
