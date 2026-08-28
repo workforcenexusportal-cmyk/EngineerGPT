@@ -31,9 +31,9 @@ jobs:
         env:
           EXPORT_STATIC: "1"
           NEXT_PUBLIC_API_BASE_URL: https://engineergpt.onrender.com
-          # Leading // prevents Git Bash-style path conversion on local tests;
-          # GitHub Actions passes it to Next as the intended /EngineerGPT path.
-          GITHUB_PAGES_BASE_PATH: //EngineerGPT
+          # GitHub Actions runs on Linux, so the normal repository path is
+          # passed directly to Next (do not use //; browsers treat that as a host).
+          GITHUB_PAGES_BASE_PATH: /EngineerGPT
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
