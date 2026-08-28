@@ -44,9 +44,12 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        # pgvector must exist before migrations that create Vector columns run.
-        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        connection.commit()
+        # pgvector must exist before migrations that create Vector columns run,
+        # but only makes sense on Postgres — SQLite (local dev) has no
+        # extensions and would fail on this statement.
+        if settings.is_postgres:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            connection.commit()
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
