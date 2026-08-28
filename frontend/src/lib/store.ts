@@ -37,7 +37,7 @@ export const useSession = create<SessionState>((set) => ({
   },
   setToken: (token) => {
     persistToken(token);
-    set({ token });
+    set({ token, user: null });
   },
   logout: () => {
     persistToken(null);
