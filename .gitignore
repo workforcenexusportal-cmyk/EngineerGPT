@@ -12,6 +12,7 @@ htmlcov/
 # Node / Next.js
 node_modules/
 .next/
+.next.bak/
 out/
 dist/
 *.tsbuildinfo

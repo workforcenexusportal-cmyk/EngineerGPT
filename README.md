@@ -185,10 +185,25 @@ via secrets — no code changes.
 
 ## Deploy to production (free, no credit card)
 
-Stack: **Vercel** (frontend) + **Hugging Face Spaces** (backend) + **Neon**
-(Postgres). All three have free tiers that never ask for a card. Free tiers
-sleep after inactivity and cold-start on the next request (~30–60s) — fine for
-demos and sharing, not for production traffic.
+Stack: **Hugging Face Spaces** (backend) + **Neon** (Postgres) + **GitHub
+Pages** (frontend). All free, never ask for a card. Free tiers sleep after
+inactivity and cold-start on the next request (~30–60s) — fine for demos and
+sharing, not for production traffic.
+
+**One-command path (recommended):** create two accounts with GitHub sign-in
+(HF: https://huggingface.co, Neon: https://neon.tech — no cards), then put
+`HF_TOKEN`, `NEON_TOKEN`, `ADMIN_PASSWORD` (and optionally `OPENAI_API_KEY`)
+in `deploy/.env.deploy` and run:
+
+```bash
+bash deploy/deploy-cardfree.sh
+```
+
+The script creates the Space, pushes the backend, provisions the Neon
+database, sets every secret, and publishes the frontend to GitHub Pages via
+your existing `gh` login.
+
+Manual equivalent (same result, step by step):
 
 **1. Database — Neon** (https://neon.tech, free plan, no card)
 

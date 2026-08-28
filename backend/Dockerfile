@@ -21,4 +21,5 @@ USER appuser
 
 EXPOSE 8000
 # Wait for Postgres, apply migrations, seed the admin (idempotent), then serve.
-CMD ["sh", "-c", "python -m scripts.wait_for_db && alembic upgrade head && python -m scripts.seed_admin && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Honours $PORT when set (Render) and defaults to 8000 (Docker Compose / Fly).
+CMD ["sh", "-c", "python -m scripts.wait_for_db && alembic upgrade head && python -m scripts.seed_admin && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
