@@ -180,6 +180,64 @@ To switch to native `pgvector` for scale: connect as the Postgres superuser, run
 omit credentials to run in deterministic mock mode. Provider is swapped purely
 via secrets — no code changes.
 
+> **Note:** Fly.io requires a credit card for every new account. If you don't
+> want to give one, use the free card-free path below instead.
+
+## Deploy to production (free, no credit card)
+
+Stack: **Vercel** (frontend) + **Hugging Face Spaces** (backend) + **Neon**
+(Postgres). All three have free tiers that never ask for a card. Free tiers
+sleep after inactivity and cold-start on the next request (~30–60s) — fine for
+demos and sharing, not for production traffic.
+
+**1. Database — Neon** (https://neon.tech, free plan, no card)
+
+1. Create a project (any region).
+2. Copy the **connection string** (it looks like
+   `postgresql://user:pass@ep-xxx.region.aws.neon.tech/dbname`). Append
+   `?sslmode=require`.
+
+**2. Backend — Hugging Face Spaces** (free, no card)
+
+1. Create a Space at https://huggingface.co/new-space — **SDK: Docker**, name
+   e.g. `engineergpt-api`.
+2. From the repo root, prepare and push:
+   ```bash
+   bash deploy/hf-space/sync.sh          # copies backend source into the folder
+   cd deploy/hf-space
+   git init && git add -A && git commit -m "deploy"
+   git remote add origin https://huggingface.co/spaces/<your-user>/engineergpt-api
+   git push -f origin main
+   ```
+3. On the Space's **Settings → Variables and secrets**, add (secrets are never
+   committed):
+   ```
+   ENVIRONMENT=production
+   SECRET_KEY=<long random string>        # e.g. openssl rand -base64 48
+   DATABASE_URL=<your Neon connection string with ?sslmode=require>
+   AI_PROVIDER=openai                     # or mock / azure
+   OPENAI_API_KEY=sk-...
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=<strong password>
+   CORS_ORIGINS=["https://<your-app>.vercel.app","http://localhost:3000"]
+   ```
+   The container waits for the DB, applies migrations, seeds the admin, then
+   serves. Your API is at `https://<your-user>-engineergpt-api.hf.space/docs`.
+
+   > Free Spaces restart with an empty disk — uploaded knowledge-hub files and
+   > SQLite data are ephemeral. All persistent state lives in the Neon database.
+
+**3. Frontend — Vercel** (free, no card)
+
+1. Import this GitHub repo at https://vercel.com/new.
+2. **Root Directory:** `frontend`.
+3. **Environment Variable (build):** `NEXT_PUBLIC_API_BASE_URL` =
+   `https://<your-user>-engineergpt-api.hf.space`.
+4. Deploy. The app is live at `https://<your-app>.vercel.app`.
+
+Sign in with your `ADMIN_EMAIL` / `ADMIN_PASSWORD`. All six modules work in mock
+mode; the OpenAI key switches the backend to live AI — no code changes.
+
 ---
 
 ## Contributing & branch protection

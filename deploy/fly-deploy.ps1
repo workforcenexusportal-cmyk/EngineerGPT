@@ -62,16 +62,18 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Run 'fly auth login' first." -ForegroundC
 
 # --- Collect secrets locally ----------------------------------------------
 Step "Collecting configuration (input stays on this machine)"
-$adminPassword = Read-Secret "Admin password for $AdminEmail"
+# Values can come from environment variables (non-interactive deploys, CI) or
+# from secure prompts. Env vars win when both are present.
+$adminPassword = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { Read-Secret "Admin password for $AdminEmail" }
 $azureEndpoint = ""; $azureKey = ""; $chatDeployment = ""; $embedDeployment = ""
 if ($AiProvider -eq "azure") {
-    $azureEndpoint   = Read-Host   "Azure OpenAI endpoint (https://<name>.openai.azure.com)"
-    $azureKey        = Read-Secret "Azure OpenAI API key"
-    $chatDeployment  = Read-Host   "Azure chat *deployment* name (e.g. gpt-4o-mini)"
-    $embedDeployment = Read-Host   "Azure embedding *deployment* name (e.g. text-embedding-3-small)"
+    $azureEndpoint   = if ($env:AZURE_OPENAI_ENDPOINT)   { $env:AZURE_OPENAI_ENDPOINT }   else { Read-Host   "Azure OpenAI endpoint (https://<name>.openai.azure.com)" }
+    $azureKey        = if ($env:AZURE_OPENAI_API_KEY)    { $env:AZURE_OPENAI_API_KEY }    else { Read-Secret "Azure OpenAI API key" }
+    $chatDeployment  = if ($env:OPENAI_CHAT_MODEL)       { $env:OPENAI_CHAT_MODEL }       else { Read-Host   "Azure chat *deployment* name (e.g. gpt-4o-mini)" }
+    $embedDeployment = if ($env:OPENAI_EMBEDDING_MODEL)  { $env:OPENAI_EMBEDDING_MODEL }  else { Read-Host   "Azure embedding *deployment* name (e.g. text-embedding-3-small)" }
 }
 elseif ($AiProvider -eq "openai") {
-    $azureKey = Read-Secret "OpenAI API key"
+    $azureKey = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { Read-Secret "OpenAI API key" }
 }
 
 $bytes = New-Object 'System.Byte[]' 48
