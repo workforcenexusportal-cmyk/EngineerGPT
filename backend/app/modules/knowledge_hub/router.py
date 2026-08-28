@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.ai.provider import AIProvider, get_ai_provider
 from app.core.config import settings
@@ -47,14 +48,21 @@ async def upload_document(
     provider: AIProvider = Depends(get_ai_provider),
     _: object = Depends(require_role(Role.ENGINEER)),
 ) -> DocumentResponse:
-    data = await file.read()
+    # FIX: explicitly close the upload after reading to release temporary files.
+    try:
+        # FIX: cap buffering at one byte over the configured limit (memory-safe upload guard).
+        data = await file.read(settings.max_upload_size_bytes + 1)
+    finally:
+        await file.close()
     if len(data) > settings.max_upload_size_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=f"File exceeds the {settings.max_upload_size_mb} MB limit.",
         )
     try:
-        document = service.ingest_document(
+        # FIX: extraction/embedding are blocking; run the pipeline in a worker thread.
+        document = await run_in_threadpool(
+            service.ingest_document,
             db=db,
             provider=provider,
             filename=file.filename or "upload",
@@ -119,10 +127,16 @@ def delete_document(
 @router.post("/search", response_model=AgentResult)
 def search(
     body: SearchRequest,
+    current: CurrentUser,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
     _: object = Depends(require_role(Role.VIEWER)),
 ) -> AgentResult:
     return service.semantic_search(
-        db=db, provider=provider, query=body.query, top_k=body.top_k
+        db=db,
+        provider=provider,
+        query=body.query,
+        top_k=body.top_k,
+        # FIX: pass tenant identity through every retrieval path.
+        org_id=current.org_id,
     )

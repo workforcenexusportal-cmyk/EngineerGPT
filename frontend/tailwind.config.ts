@@ -6,14 +6,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        base: "#040404",
-        cyan: { DEFAULT: "#00E5FF" },
-        sky: { DEFAULT: "#00BFFF" },
-        indigo: { DEFAULT: "#4F46E5" },
-        violet: { DEFAULT: "#9333EA" },
+        // THEME: only two saturated accents keep neon coverage restrained.
+        base: "#0A0A0F",
+        cyan: { DEFAULT: "#00FFF5" },
+        magenta: { DEFAULT: "#FF2BD6" },
+        // Compatibility aliases: legacy screens resolve to the same two neon accents.
+        sky: { DEFAULT: "#00FFF5" },
+        violet: { DEFAULT: "#FF2BD6" },
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        sans: ["Fira Code", "JetBrains Mono", "ui-monospace", "monospace"],
+        display: ["Rajdhani", "Teko", "Impact", "sans-serif"],
       },
       backdropBlur: {
         glass: "24px",

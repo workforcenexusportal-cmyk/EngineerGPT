@@ -1,32 +1,34 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { useMemo } from "react";
 
-/** Subtle floating particle field for ambient depth. Purely decorative. */
-export function ParticleField({ count = 22 }: { count?: number }) {
-  const particles = useMemo(
-    () =>
-      Array.from({ length: count }, (_, i) => ({
-        id: i,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        size: Math.random() * 3 + 1,
-        duration: Math.random() * 8 + 6,
-        delay: Math.random() * 4,
-      })),
+interface Particle {
+  id: number;
+  left: number;
+  top: number;
+  delay: number;
+}
+
+/** THEME: lightweight ambient data points; deterministic to avoid hydration mismatch. */
+export function ParticleField({ count = 18 }: { count?: number }) {
+  const particles = useMemo<Particle[]>(
+    () => Array.from({ length: count }, (_, id) => ({
+      id,
+      left: (id * 37) % 100,
+      top: (id * 61) % 100,
+      delay: (id % 6) * 0.7,
+    })),
     [count],
   );
 
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-      {particles.map((p) => (
-        <motion.span
-          key={p.id}
-          className="absolute rounded-full bg-cyan/30"
-          style={{ left: `${p.left}%`, top: `${p.top}%`, width: p.size, height: p.size }}
-          animate={{ y: [0, -30, 0], opacity: [0.1, 0.6, 0.1] }}
-          transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: "easeInOut" }}
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+      <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(0,255,245,.07)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,245,.07)_1px,transparent_1px)] [background-size:52px_52px]" />
+      {particles.map((particle) => (
+        <span
+          key={particle.id}
+          className="absolute h-1 w-1 bg-cyan/40"
+          style={{ left: `${particle.left}%`, top: `${particle.top}%`, animationDelay: `${particle.delay}s` }}
         />
       ))}
     </div>

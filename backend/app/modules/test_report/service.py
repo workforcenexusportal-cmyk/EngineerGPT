@@ -75,8 +75,9 @@ def _ai_narrative(
             "recommendations": [str(r) for r in parsed.get("recommendations", [])]
             or _fallback_recommendations(anomalies),
         }
-    except (json.JSONDecodeError, KeyError, TypeError):
-        logger.info("ai_narrative_unparseable_using_deterministic_fallback")
+    # FIX: provider/network failures must degrade to deterministic evidence, not a 500.
+    except Exception:
+        logger.exception("ai_narrative_failed_using_deterministic_fallback")
         return {
             "executive_summary": _fallback_summary(df, anomalies),
             "findings": _fallback_findings(stats),

@@ -83,11 +83,17 @@ export async function analyzeTestReport(
   form.append("file", file);
   form.append("title", title);
 
-  const res = await fetch(`${API_V1}/test-report/analyze`, {
+  // FIX: surface network failures as typed errors instead of unhandled rejections.
+  let res: Response;
+  try {
+    res = await fetch(`${API_V1}/test-report/analyze`, {
     method: "POST",
     headers: authHeader(token),
     body: form,
-  });
+    });
+  } catch (error) {
+    throw new ApiError(error instanceof Error ? error.message : "Network request failed", 0);
+  }
   if (!res.ok) return parseError(res);
   return (await res.json()) as TestReport;
 }

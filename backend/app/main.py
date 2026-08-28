@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -49,6 +50,18 @@ app.add_middleware(RateLimitMiddleware, limit=120, window_seconds=60)
 app.add_middleware(RequestContextMiddleware)
 
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+
+@app.exception_handler(Exception)
+async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    """FIX: return a stable generic 500 response while logging diagnostic detail server-side."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.exception("request_failed", extra={"extra_fields": {"request_id": request_id}})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error.", "request_id": request_id},
+        headers={"x-request-id": request_id},
+    )
 
 
 @app.get("/health", tags=["Health"])

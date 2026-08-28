@@ -30,6 +30,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     full_name: str = Field(default="", max_length=200)
+    # FIX: role is retained for backwards-compatible clients but cannot self-escalate.
     role: Role = Role.ENGINEER
 
 
@@ -47,12 +48,16 @@ class TokenResponse(BaseModel):
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(body: RegisterRequest, db: Session = Depends(get_db)) -> UserResponse:
+    # FIX: public registration must never create privileged accounts.
+    if body.role is not Role.ENGINEER:
+        raise HTTPException(status_code=403, detail="New accounts must use the engineer role.")
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered.")
     user = User(
         email=body.email,
-        full_name=body.full_name,
+        # FIX: normalize free-text identity fields before persistence.
+        full_name=body.full_name.strip(),
         hashed_password=hash_password(body.password),
         role=body.role,
     )

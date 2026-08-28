@@ -9,7 +9,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,7 +83,17 @@ class Settings(BaseSettings):
     admin_full_name: str = "EngineerGPT Admin"
 
     # --- CORS ---
-    cors_origins: list[str] = ["http://localhost:3000"]
+    # FIX: use a factory so settings instances never share a mutable origin list.
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, origins: list[str]) -> list[str]:
+        """FIX: reject wildcard CORS when credentials are enabled."""
+        cleaned = [origin.strip().rstrip("/") for origin in origins if origin.strip()]
+        if "*" in cleaned:
+            raise ValueError("CORS wildcard is not allowed when credentials are enabled")
+        return cleaned
 
     @computed_field  # type: ignore[prop-decorator]
     @property

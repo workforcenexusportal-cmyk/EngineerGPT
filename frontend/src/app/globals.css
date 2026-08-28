@@ -2,49 +2,148 @@
 @tailwind components;
 @tailwind utilities;
 
+/* THEME: Cyberpunk foundation — near-black canvas with cyan/magenta as controlled accents. */
 :root {
   color-scheme: dark;
+  --cyber-bg: #0a0a0f;
+  --cyber-panel: rgba(16, 20, 29, 0.78);
+  --cyber-cyan: #00fff5;
+  --cyber-magenta: #ff2bd6;
+  --cyber-text: #e8f1f5;
+  --cyber-muted: #9aaeb8;
 }
 
 html,
 body {
-  background-color: #040404;
-  color: #e5e7eb;
-  font-family: Inter, system-ui, sans-serif;
+  min-height: 100%;
+  background: var(--cyber-bg);
+  color: var(--cyber-text);
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, monospace;
   -webkit-font-smoothing: antialiased;
 }
 
+/* THEME: low-opacity HUD scanlines; decorative and non-interactive. */
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 255, 245, 0.025) 4px);
+  content: "";
+}
+
+@layer base {
+  /* THEME: all controls use angular edges instead of legacy rounded primitives. */
+  button, input, textarea { border-radius: 0; }
+}
+
 @layer components {
+  /* THEME: clipped glass panels replace soft rounded cards with angular HUD geometry. */
   .glass {
-    @apply border border-white/10 bg-white/[0.04] backdrop-blur-glass;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45);
+    @apply border bg-white/[0.035] backdrop-blur-glass;
+    border-color: rgba(0, 255, 245, 0.2);
+    clip-path: polygon(0 10px, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px));
+    box-shadow: inset 0 0 24px rgba(0, 255, 245, 0.035), 0 12px 45px rgba(0, 0, 0, 0.38);
   }
 
   .glass-hover {
-    @apply transition-all duration-300 hover:border-cyan/40 hover:bg-white/[0.06];
+    @apply transition-all duration-300 hover:bg-white/[0.06];
+  }
+
+  .glass-hover:hover {
+    border-color: var(--cyber-cyan);
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.12), inset 0 0 24px rgba(0, 255, 245, 0.05);
+  }
+
+  /* THEME: geometric display treatment, used only for primary headings. */
+  .display-font {
+    font-family: "Rajdhani", "Teko", Impact, sans-serif;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .text-gradient {
-    @apply bg-gradient-to-r from-cyan via-sky to-violet bg-clip-text text-transparent;
+    color: var(--cyber-cyan);
+    text-shadow: 0 0 16px rgba(0, 255, 245, 0.35);
+  }
+
+  /* THEME: compact telemetry labels and field treatment for HUD-style panels. */
+  .hud-kicker {
+    color: var(--cyber-cyan);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .status-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 999px;
+    background: var(--cyber-cyan);
+    box-shadow: 0 0 10px var(--cyber-cyan);
+  }
+
+  .cyber-input {
+    border: 1px solid rgba(154, 174, 184, 0.3);
+    background: rgba(8, 12, 18, 0.8);
+    color: var(--cyber-text);
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .cyber-input:focus {
+    border-color: var(--cyber-cyan);
+    box-shadow: 0 0 14px rgba(0, 255, 245, 0.12);
+  }
+
+  .cyber-button {
+    clip-path: polygon(0 7px, 7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%);
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  }
+
+  .cyber-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 0 18px rgba(0, 255, 245, 0.3);
   }
 
   .aurora {
-    background: radial-gradient(
-        1200px 600px at 10% -10%,
-        rgba(0, 191, 255, 0.14),
-        transparent 60%
-      ),
-      radial-gradient(1000px 500px at 90% 10%, rgba(147, 51, 234, 0.12), transparent 60%),
-      radial-gradient(900px 500px at 50% 120%, rgba(79, 70, 229, 0.12), transparent 60%);
+    background: radial-gradient(900px 500px at 8% -10%, rgba(0, 255, 245, 0.1), transparent 62%),
+      radial-gradient(800px 500px at 92% 8%, rgba(255, 43, 214, 0.08), transparent 62%),
+      linear-gradient(135deg, #0a0a0f 0%, #0d1119 55%, #0a0a0f 100%);
+  }
+
+  /* THEME: one controlled glitch treatment, applied to the dashboard title only. */
+  .glitch-title {
+    position: relative;
+    animation: cyber-glitch 5s steps(1, end) infinite;
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes cyber-glitch {
+  0%, 92%, 100% { transform: translate(0); }
+  93% { transform: translate(1px, -1px); text-shadow: 2px 0 var(--cyber-magenta), -2px 0 var(--cyber-cyan); }
+  94% { transform: translate(-1px, 1px); }
+  95% { transform: translate(0); text-shadow: none; }
 }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 9999px;
+
+/* THEME: accessible keyboard focus and responsive canvas. */
+:where(button, a, input, textarea):focus-visible {
+  outline: 2px solid var(--cyber-cyan);
+  outline-offset: 3px;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(0, 255, 245, 0.22); }
+
+@media (max-width: 767px) {
+  body::before { opacity: 0.65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -88,13 +88,18 @@ def delete_document(*, db: Session, document_id: str, org_id: str | None = None)
 
 
 def semantic_search(
-    *, db: Session, provider: AIProvider, query: str, top_k: int = 5
+    *,
+    db: Session,
+    provider: AIProvider,
+    query: str,
+    top_k: int = 5,
+    org_id: str | None = None,
 ) -> AgentResult:
     query_vec = provider.embed([query])[0]
     if settings.pgvector_enabled:
-        hits = _search_pgvector(db, query_vec, top_k)
+        hits = _search_pgvector(db, query_vec, top_k, org_id)
     else:
-        hits = _search_python(db, query_vec, top_k)
+        hits = _search_python(db, query_vec, top_k, org_id)
 
     if not hits:
         return AgentResult(
@@ -124,26 +129,33 @@ def semantic_search(
 
 
 def _search_pgvector(
-    db: Session, query_vec: list[float], top_k: int
+    db: Session, query_vec: list[float], top_k: int, org_id: str | None
 ) -> list[DocumentChunk]:
     """Native pgvector nearest-neighbour search (cosine distance)."""
     stmt = (
         select(DocumentChunk)
+        .join(Document, Document.id == DocumentChunk.document_id)
         .order_by(DocumentChunk.embedding.cosine_distance(query_vec))
         .limit(top_k)
     )
+    # FIX: scope retrieval to the caller's organization to prevent cross-tenant leakage.
+    if org_id is not None:
+        stmt = stmt.where(Document.org_id == org_id)
     return list(db.execute(stmt).scalars().all())
 
 
 def _search_python(
-    db: Session, query_vec: list[float], top_k: int
+    db: Session, query_vec: list[float], top_k: int, org_id: str | None
 ) -> list[DocumentChunk]:
     """Portable cosine-similarity search for SQLite / non-pgvector backends.
 
     Scans the chunk table and ranks in Python. Suitable for local/dev corpora;
     production uses the indexed pgvector path above.
     """
-    chunks = list(db.execute(select(DocumentChunk)).scalars().all())
+    stmt = select(DocumentChunk).join(Document, Document.id == DocumentChunk.document_id)
+    if org_id is not None:
+        stmt = stmt.where(Document.org_id == org_id)
+    chunks = list(db.execute(stmt).scalars().all())
     q_norm = math.sqrt(sum(v * v for v in query_vec)) or 1.0
 
     def similarity(chunk: DocumentChunk) -> float:
