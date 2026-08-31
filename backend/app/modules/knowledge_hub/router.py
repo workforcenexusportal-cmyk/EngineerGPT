@@ -14,6 +14,8 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.domain import AgentResult
 from app.core.security import CurrentUser, Role, require_role
+from app.core.usage import enforce_analysis_quota, enforce_document_quota
+from app.modules.history import service as history
 from app.modules.knowledge_hub import service
 from app.pipeline.validation import FileValidationError
 
@@ -47,6 +49,7 @@ async def upload_document(
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
     _: object = Depends(require_role(Role.ENGINEER)),
+    __: object = Depends(enforce_document_quota),
 ) -> DocumentResponse:
     # FIX: explicitly close the upload after reading to release temporary files.
     try:
@@ -131,8 +134,9 @@ def search(
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
     _: object = Depends(require_role(Role.VIEWER)),
+    __: object = Depends(enforce_analysis_quota),
 ) -> AgentResult:
-    return service.semantic_search(
+    result = service.semantic_search(
         db=db,
         provider=provider,
         query=body.query,
@@ -140,3 +144,13 @@ def search(
         # FIX: pass tenant identity through every retrieval path.
         org_id=current.org_id,
     )
+    history.record_analysis(
+        db,
+        module="knowledge_hub",
+        title=body.query[:120],
+        request=body.model_dump(),
+        result=result,
+        org_id=current.org_id,
+        owner_id=current.sub,
+    )
+    return result

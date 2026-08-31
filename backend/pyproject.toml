@@ -21,6 +21,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3",
     "bcrypt>=4.1",
     "python-multipart>=0.0.9",
+    "stripe>=9.0",
     "openai>=1.30",
     "langchain>=0.2",
     "langgraph>=0.1",

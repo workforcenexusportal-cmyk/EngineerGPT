@@ -38,6 +38,7 @@ class TokenData(BaseModel):
     sub: str
     role: Role
     org_id: str | None = None
+    is_superuser: bool = False
 
 
 def hash_password(plain: str) -> str:
@@ -61,6 +62,7 @@ def create_access_token(data: TokenData, expires_minutes: int | None = None) -> 
         "sub": data.sub,
         "role": data.role.value,
         "org_id": data.org_id,
+        "is_superuser": data.is_superuser,
         "exp": expire,
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
@@ -78,7 +80,12 @@ def decode_token(token: str) -> TokenData:
         role = payload.get("role")
         if subject is None or role is None:
             raise credentials_error
-        return TokenData(sub=subject, role=Role(role), org_id=payload.get("org_id"))
+        return TokenData(
+            sub=subject,
+            role=Role(role),
+            org_id=payload.get("org_id"),
+            is_superuser=bool(payload.get("is_superuser", False)),
+        )
     except (JWTError, ValueError) as exc:
         raise credentials_error from exc
 
@@ -102,3 +109,13 @@ def require_role(minimum: Role):
         return user
 
     return _guard
+
+
+def require_superuser(user: CurrentUser) -> TokenData:
+    """Dependency that allows only platform superusers (admin panel)."""
+    if not user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform administrator access required",
+        )
+    return user

@@ -44,6 +44,7 @@ def main() -> None:
             full_name=settings.admin_full_name,
             hashed_password=hash_password(settings.admin_password),
             role=Role.ADMIN,
+            is_superuser=True,
         )
         db.add(admin)
         db.commit()

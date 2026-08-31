@@ -86,6 +86,20 @@ class Settings(BaseSettings):
     # FIX: use a factory so settings instances never share a mutable origin list.
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
+    # --- Public app / SaaS ---
+    # Public base URL of the frontend (used for Stripe redirect URLs and emails).
+    frontend_url: str = "http://localhost:3000"
+    # Allow open self-service signup. Disable to lock the instance to invites.
+    allow_public_signup: bool = True
+
+    # --- Billing (Stripe) ---
+    # Billing is fully optional: with no secret key the app runs in free-only mode
+    # and billing endpoints report as unavailable rather than erroring.
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_pro: str = ""
+    stripe_price_team: str = ""
+
     @field_validator("cors_origins")
     @classmethod
     def validate_cors_origins(cls, origins: list[str]) -> list[str]:
@@ -139,6 +153,12 @@ class Settings(BaseSettings):
         if self.ai_provider == "azure":
             return not (self.azure_openai_api_key and self.azure_openai_endpoint)
         return True
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def billing_enabled(self) -> bool:
+        """Stripe billing is active only when a secret key is configured."""
+        return bool(self.stripe_secret_key)
 
 
 @lru_cache
