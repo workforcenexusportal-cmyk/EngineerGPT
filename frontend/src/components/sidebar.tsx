@@ -6,10 +6,13 @@ import {
   Activity,
   BookOpen,
   ClipboardCheck,
+  CreditCard,
   FileBarChart,
+  History,
   LayoutDashboard,
   LogOut,
   ShieldAlert,
+  ShieldCheck,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,16 +26,26 @@ const NAV = [
   { href: "/requirements", label: "Requirements", icon: ClipboardCheck, ready: true },
   { href: "/meeting-prep", label: "Meeting Prep", icon: Users, ready: true },
   { href: "/design-review", label: "Design Review", icon: Activity, ready: true },
+  { href: "/history", label: "History", icon: History, ready: true },
+  { href: "/billing", label: "Plans & Billing", icon: CreditCard, ready: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { token, user, logout } = useSession();
+  const { token, user, context, logout } = useSession();
+
+  const navItems = [
+    ...NAV,
+    ...(user?.is_superuser
+      ? [{ href: "/admin", label: "Admin Console", icon: ShieldCheck, ready: true }]
+      : []),
+  ];
+
   return (
     <>
       {/* FIX: provide the same navigation on narrow screens; the former desktop-only nav was unreachable. */}
       <nav aria-label="Mobile navigation" className="sticky top-0 z-30 flex gap-2 overflow-x-auto border-b border-cyan/20 bg-[#0a0a0f]/95 p-3 backdrop-blur-glass md:hidden">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon }) => (
           <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined} className={cn("shrink-0 border px-3 py-2 text-[11px]", pathname === href ? "border-cyan bg-cyan/10 text-cyan" : "border-white/10 text-gray-400")}>
             <Icon className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />{label}
           </Link>
@@ -44,8 +57,8 @@ export function Sidebar() {
         <div className="h-8 w-8 border border-cyan bg-cyan/10" aria-hidden="true" />
         <span className="display-font text-lg font-bold tracking-tight text-gradient">EngineerGPT</span>
       </Link>
-      <nav className="flex flex-col gap-1">
-        {NAV.map(({ href, label, icon: Icon, ready }) => {
+      <nav className="flex flex-col gap-1 overflow-y-auto">
+        {navItems.map(({ href, label, icon: Icon, ready }) => {
           const active = pathname === href;
           return (
             <Link
@@ -72,15 +85,33 @@ export function Sidebar() {
         })}
       </nav>
       <div className="mt-auto flex flex-col gap-2">
+        {token && context && (
+          <Link
+            href="/billing"
+            className="border border-cyan/30 bg-cyan/[0.06] p-3 transition-colors hover:border-cyan/60"
+          >
+            <div className="flex items-center justify-between">
+              <span className="hud-kicker text-[10px]">{context.plan.label} plan</span>
+              <span className="text-[10px] text-cyan">Upgrade</span>
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-400">
+              {context.usage.analyses_this_month}
+              {context.plan.monthly_analyses < 0
+                ? ""
+                : ` / ${context.plan.monthly_analyses}`}{" "}
+              analyses this month
+            </p>
+          </Link>
+        )}
         {token && (
           <div className="flex items-center gap-2 border border-white/10 bg-white/[0.03] p-3">
             <div className="h-8 w-8 shrink-0 border border-cyan bg-cyan/10" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium text-gray-200">
-                {user?.sub ?? "Signed in"}
+                {context?.user.email ?? "Signed in"}
               </p>
               <p className="text-[10px] uppercase tracking-wide text-gray-500">
-                {user?.role ?? "session"}
+                {context?.organization?.name ?? user?.role ?? "session"}
               </p>
             </div>
             <button

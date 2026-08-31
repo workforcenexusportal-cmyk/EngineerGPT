@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, FileBarChart, Lightbulb, ShieldAlert, TrendingUp, type LucideIcon } from "lucide-react";
+import { ArrowRight, FileBarChart, Lightbulb, LogIn, Rocket, ShieldAlert, TrendingUp, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CommandBar } from "@/components/command-bar";
 import { GlassCard } from "@/components/glass-card";
+import { useSession } from "@/lib/store";
 
 interface Widget {
   label: string;
@@ -30,7 +31,85 @@ const SUGGESTIONS = [
   "Which requirements contradict the thermal spec?",
 ];
 
+const FEATURES = [
+  { title: "Test Report Agent", desc: "Turn raw CSV/XLSX measurements into executive summaries, anomaly maps, and exportable evidence packs.", icon: FileBarChart },
+  { title: "Knowledge Hub", desc: "Grounded RAG over your documents — every answer is cited back to the source.", icon: Lightbulb },
+  { title: "Failure & Design Review", desc: "Diagnose DTC/sensor failures and pressure-test designs against specs with traceable reasoning.", icon: ShieldAlert },
+];
+
 export default function DashboardPage() {
+  const token = useSession((s) => s.token);
+  if (!token) return <MarketingLanding />;
+  return <CommandCenter />;
+}
+
+function MarketingLanding() {
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 py-6">
+      <section className="flex flex-col items-center gap-5 text-center">
+        <p className="hud-kicker">AI OPERATING SYSTEM // MANUFACTURING ENGINEERING</p>
+        <motion.h1
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="display-font glitch-title max-w-3xl text-4xl font-bold tracking-tight md:text-6xl"
+        >
+          Engineering intelligence, <span className="text-gradient">evidence-backed</span>.
+        </motion.h1>
+        <p className="max-w-2xl text-base leading-relaxed text-gray-300">
+          EngineerGPT reduces documentation effort, accelerates analysis, and preserves company
+          knowledge with AI agents built for teams that build what matters.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/signup"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan to-sky px-6 py-3 text-sm font-bold text-black transition-transform hover:scale-[1.03]"
+          >
+            <Rocket className="h-4 w-4" /> Start free
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 border border-white/15 px-6 py-3 text-sm font-semibold text-gray-200 transition-colors hover:border-cyan/50 hover:text-white"
+          >
+            <LogIn className="h-4 w-4" /> Sign in
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+          <span className="status-dot" aria-hidden="true" /> Free plan · No credit card required
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {FEATURES.map((f, i) => {
+          const Icon = f.icon;
+          return (
+            <GlassCard key={f.title} delay={i * 0.05}>
+              <Icon className="h-6 w-6 text-cyan" aria-hidden="true" />
+              <h2 className="display-font mt-3 text-xl font-semibold">{f.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-gray-400">{f.desc}</p>
+            </GlassCard>
+          );
+        })}
+      </section>
+
+      <section className="flex flex-col items-center gap-4 text-center">
+        <h2 className="display-font text-2xl font-semibold">
+          Simple, transparent <span className="text-gradient">pricing</span>
+        </h2>
+        <p className="max-w-xl text-sm text-gray-400">
+          Start on the Free plan, upgrade to Pro or Team as your workspace grows.
+        </p>
+        <Link
+          href="/signup"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan to-sky px-6 py-3 text-sm font-bold text-black transition-transform hover:scale-[1.03]"
+        >
+          Create your workspace <ArrowRight className="h-4 w-4" />
+        </Link>
+      </section>
+    </div>
+  );
+}
+
+function CommandCenter() {
   const [widgets, setWidgets] = useState(INITIAL_WIDGETS);
   const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
 

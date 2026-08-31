@@ -118,16 +118,66 @@ export async function exportTestReportPdf(
 }
 
 // ---------------------------------------------------------------------------
-// Authentication
+// Authentication & tenancy
 // ---------------------------------------------------------------------------
+export type Role = "admin" | "manager" | "engineer" | "viewer";
+
+/** Token claims returned by /auth/me. */
 export interface AuthUser {
   sub: string;
-  role: "admin" | "manager" | "engineer" | "viewer";
+  role: Role;
   org_id: string | null;
+  is_superuser: boolean;
 }
 
-/** Exchange email + password for a bearer token (OAuth2 password grant). */
-export async function login(email: string, password: string): Promise<string> {
+/** Rich user profile returned inside auth/context responses. */
+export interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  org_id: string | null;
+  is_superuser: boolean;
+}
+
+export interface AuthSession {
+  access_token: string;
+  token_type: string;
+  user: UserProfile;
+}
+
+export interface PlanInfo {
+  key: string;
+  label: string;
+  price_usd_month: number;
+  monthly_analyses: number;
+  max_documents: number;
+  max_members: number;
+  features: string[];
+}
+
+export interface OrgInfo {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  subscription_status: string | null;
+}
+
+export interface UsageInfo {
+  analyses_this_month: number;
+  documents: number;
+}
+
+export interface SessionContext {
+  user: UserProfile;
+  organization: OrgInfo | null;
+  plan: PlanInfo;
+  usage: UsageInfo;
+}
+
+/** Exchange email + password for a bearer token + user (OAuth2 password grant). */
+export async function login(email: string, password: string): Promise<AuthSession> {
   const form = new URLSearchParams();
   form.append("username", email);
   form.append("password", password);
@@ -138,8 +188,23 @@ export async function login(email: string, password: string): Promise<string> {
     body: form.toString(),
   });
   if (!res.ok) return parseError(res);
-  const body = (await res.json()) as { access_token: string };
-  return body.access_token;
+  return (await res.json()) as AuthSession;
+}
+
+/** Self-serve signup: provisions a new organization and signs the user in. */
+export async function register(input: {
+  email: string;
+  password: string;
+  full_name?: string;
+  company_name?: string;
+}): Promise<AuthSession> {
+  const res = await fetch(`${API_V1}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as AuthSession;
 }
 
 /** Fetch the current user described by the token. */
@@ -147,6 +212,158 @@ export async function getMe(token: string): Promise<AuthUser> {
   const res = await fetch(`${API_V1}/auth/me`, { headers: authHeader(token) });
   if (!res.ok) return parseError(res);
   return (await res.json()) as AuthUser;
+}
+
+/** Fetch identity, organization, plan, and live usage for the app shell. */
+export async function getContext(token: string): Promise<SessionContext> {
+  const res = await fetch(`${API_V1}/auth/context`, { headers: authHeader(token) });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as SessionContext;
+}
+
+// ---------------------------------------------------------------------------
+// History (saved analyses)
+// ---------------------------------------------------------------------------
+export interface HistoryItem {
+  id: string;
+  module: string;
+  title: string;
+  generated_by: string;
+  created_at: string;
+}
+
+export interface HistoryDetail extends HistoryItem {
+  request: Record<string, unknown>;
+  result: AgentResult;
+}
+
+export async function listHistory(
+  token: string,
+  opts: { module?: string; limit?: number } = {},
+): Promise<HistoryItem[]> {
+  const params = new URLSearchParams();
+  if (opts.module) params.append("module", opts.module);
+  if (opts.limit) params.append("limit", String(opts.limit));
+  const qs = params.toString();
+  const res = await fetch(`${API_V1}/history${qs ? `?${qs}` : ""}`, {
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as HistoryItem[];
+}
+
+export async function getHistory(id: string, token: string): Promise<HistoryDetail> {
+  const res = await fetch(`${API_V1}/history/${id}`, { headers: authHeader(token) });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as HistoryDetail;
+}
+
+export async function deleteHistory(id: string, token: string): Promise<void> {
+  const res = await fetch(`${API_V1}/history/${id}`, {
+    method: "DELETE",
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+}
+
+// ---------------------------------------------------------------------------
+// Billing (Stripe)
+// ---------------------------------------------------------------------------
+export interface PlanCatalogItem extends PlanInfo {
+  purchasable: boolean;
+}
+
+export async function listPlans(): Promise<PlanCatalogItem[]> {
+  const res = await fetch(`${API_V1}/billing/plans`);
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as PlanCatalogItem[];
+}
+
+/** Start a Stripe Checkout session; returns the URL to redirect the user to. */
+export async function createCheckout(plan: string, token: string): Promise<string> {
+  const res = await fetch(`${API_V1}/billing/checkout`, {
+    method: "POST",
+    headers: { ...authHeader(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) return parseError(res);
+  return ((await res.json()) as { url: string }).url;
+}
+
+/** Open the Stripe customer portal; returns the URL to redirect to. */
+export async function openBillingPortal(token: string): Promise<string> {
+  const res = await fetch(`${API_V1}/billing/portal`, {
+    method: "POST",
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+  return ((await res.json()) as { url: string }).url;
+}
+
+// ---------------------------------------------------------------------------
+// Admin (platform superuser)
+// ---------------------------------------------------------------------------
+export interface PlatformStats {
+  organizations: number;
+  users: number;
+  documents: number;
+  analyses_total: number;
+  analyses_this_month: number;
+}
+
+export interface OrgRow {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  subscription_status: string | null;
+  members: number;
+  documents: number;
+  created_at: string;
+}
+
+export interface UserRow {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  org_id: string | null;
+  is_superuser: boolean;
+  created_at: string;
+}
+
+export async function getPlatformStats(token: string): Promise<PlatformStats> {
+  const res = await fetch(`${API_V1}/admin/stats`, { headers: authHeader(token) });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as PlatformStats;
+}
+
+export async function listOrganizations(token: string): Promise<OrgRow[]> {
+  const res = await fetch(`${API_V1}/admin/organizations`, {
+    headers: authHeader(token),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as OrgRow[];
+}
+
+export async function listUsers(token: string): Promise<UserRow[]> {
+  const res = await fetch(`${API_V1}/admin/users`, { headers: authHeader(token) });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as UserRow[];
+}
+
+export async function setOrgPlan(
+  orgId: string,
+  plan: string,
+  token: string,
+): Promise<OrgRow> {
+  const res = await fetch(`${API_V1}/admin/organizations/${orgId}/plan`, {
+    method: "POST",
+    headers: { ...authHeader(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) return parseError(res);
+  return (await res.json()) as OrgRow;
 }
 
 // ---------------------------------------------------------------------------

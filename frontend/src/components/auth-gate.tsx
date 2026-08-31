@@ -1,30 +1,38 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { KeyRound, Loader2, LogIn } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { ApiError, getMe, login } from "@/lib/api";
+import { ApiError, getContext, getMe, login } from "@/lib/api";
 import { GlassCard } from "@/components/glass-card";
 import { useSession } from "@/lib/store";
 
 /** Gates its children behind authentication.
 
- * - If a token exists, hydrates the user (and clears an invalid token).
- * - Otherwise renders an inline sign-in card.
+ * - If a token exists, hydrates the user + context (and clears an invalid token).
+ * - Otherwise renders an inline sign-in card with a link to self-serve signup.
  */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { token, user, setSession, logout } = useSession();
+  const { token, user, setSession, setContext, logout } = useSession();
   const [hydrating, setHydrating] = useState(false);
 
   useEffect(() => {
     if (token && !user) {
       setHydrating(true);
       getMe(token)
-        .then((me) => setSession(token, me))
+        .then(async (me) => {
+          setSession(token, me);
+          try {
+            setContext(await getContext(token));
+          } catch {
+            /* context is best-effort; the shell still works without it */
+          }
+        })
         .catch(() => logout())
         .finally(() => setHydrating(false));
     }
-  }, [token, user, setSession, logout]);
+  }, [token, user, setSession, setContext, logout]);
 
   if (token && hydrating) {
     return (
@@ -39,7 +47,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 function LoginCard() {
-  const setSession = useSession((s) => s.setSession);
+  const { setSession, setContext } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -50,9 +58,14 @@ function LoginCard() {
     setLoading(true);
     setError(null);
     try {
-      const token = await login(email, password);
-      const me = await getMe(token);
-      setSession(token, me);
+      const session = await login(email, password);
+      const me = await getMe(session.access_token);
+      setSession(session.access_token, me);
+      try {
+        setContext(await getContext(session.access_token));
+      } catch {
+        /* best-effort */
+      }
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Sign-in failed. Please try again.",
@@ -75,7 +88,7 @@ function LoginCard() {
           </div>
           <div>
             <h2 className="text-lg font-bold">Sign in</h2>
-            <p className="text-xs text-gray-500">Authenticate to access the Knowledge Hub.</p>
+            <p className="text-xs text-gray-500">Authenticate to access your workspace.</p>
           </div>
         </div>
 
@@ -114,6 +127,13 @@ function LoginCard() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-xs text-gray-500">
+          No account?{" "}
+          <Link href="/signup" className="text-cyan hover:underline">
+            Create your workspace
+          </Link>
+        </p>
       </GlassCard>
     </motion.div>
   );
