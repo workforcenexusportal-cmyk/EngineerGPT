@@ -5,7 +5,7 @@
 .DESCRIPTION
     Run this from the repo root: .\deploy\fly-deploy.ps1
     It provisions two Fly apps and a managed Postgres, wires DATABASE_URL,
-    sets secrets (prompted securely on THIS machine — never transmitted anywhere
+    sets secrets (prompted securely on THIS machine - never transmitted anywhere
     else), then deploys both services. Fly builds the Docker images on remote
     builders, so you do NOT need Docker installed locally.
 
@@ -30,7 +30,14 @@ param(
     [string]$AdminEmail = "admin@engineergpt.local",
     [string]$AdminFullName = "EngineerGPT Admin",
     [ValidateSet("azure", "openai", "mock")]
-    [string]$AiProvider = "azure"
+    [string]$AiProvider = "azure",
+    # SaaS: public URL of the frontend (defaults to the Fly web app). Set this to
+    # your Vercel URL if the frontend is hosted there instead.
+    [string]$FrontendUrl = "",
+    # Allow open self-service signup. Set to $false for invite-only instances.
+    [bool]$AllowPublicSignup = $true,
+    # Billing: enable Stripe by passing -Stripe (keys are read securely below).
+    [switch]$Stripe
 )
 
 $ErrorActionPreference = "Stop"
@@ -76,18 +83,30 @@ elseif ($AiProvider -eq "openai") {
     $azureKey = if ($env:OPENAI_API_KEY) { $env:OPENAI_API_KEY } else { Read-Secret "OpenAI API key" }
 }
 
+# Billing (Stripe) is optional. Keys can come from env vars or secure prompts.
+$stripeSecret = ""; $stripeWebhook = ""; $stripePricePro = ""; $stripePriceTeam = ""
+if ($Stripe) {
+    $stripeSecret    = if ($env:STRIPE_SECRET_KEY)     { $env:STRIPE_SECRET_KEY }     else { Read-Secret "Stripe secret key (sk_...)" }
+    $stripeWebhook   = if ($env:STRIPE_WEBHOOK_SECRET) { $env:STRIPE_WEBHOOK_SECRET } else { Read-Secret "Stripe webhook signing secret (whsec_...)" }
+    $stripePricePro  = if ($env:STRIPE_PRICE_PRO)      { $env:STRIPE_PRICE_PRO }      else { Read-Host   "Stripe Price ID for Pro plan (price_...)" }
+    $stripePriceTeam = if ($env:STRIPE_PRICE_TEAM)     { $env:STRIPE_PRICE_TEAM }     else { Read-Host   "Stripe Price ID for Team plan (price_...)" }
+}
+
 $bytes = New-Object 'System.Byte[]' 48
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 $secretKey = [Convert]::ToBase64String($bytes)
 
 $apiUrl = "https://$ApiApp.fly.dev"
 $webUrl = "https://$WebApp.fly.dev"
+# The public frontend URL used for Stripe redirects and CORS. Defaults to the Fly
+# web app, but is overridden when -FrontendUrl (e.g. a Vercel URL) is provided.
+$publicWebUrl = if ($FrontendUrl) { $FrontendUrl.TrimEnd('/') } else { $webUrl }
 
 # --- Backend app + Postgres -----------------------------------------------
 Step "Creating backend app '$ApiApp'"
 & fly apps create $ApiApp --org $Org 2>$null | Out-Null  # ignore 'already exists'
 
-Step "Creating managed Postgres '$PgApp' (superuser creds print ONCE — save them)"
+Step "Creating managed Postgres '$PgApp' (superuser creds print ONCE - save them)"
 & fly postgres create --name $PgApp --region $Region --org $Org `
     --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 2>$null
 # (If it already exists this is a no-op failure we can ignore.)
@@ -103,8 +122,18 @@ $secretArgs = @(
     "ADMIN_PASSWORD=$adminPassword",
     "ADMIN_FULL_NAME=$AdminFullName",
     "AI_PROVIDER=$AiProvider",
-    "CORS_ORIGINS=[""$webUrl""]"
+    "CORS_ORIGINS=[""$publicWebUrl""]",
+    "FRONTEND_URL=$publicWebUrl",
+    "ALLOW_PUBLIC_SIGNUP=$($AllowPublicSignup.ToString().ToLower())"
 )
+if ($Stripe) {
+    $secretArgs += @(
+        "STRIPE_SECRET_KEY=$stripeSecret",
+        "STRIPE_WEBHOOK_SECRET=$stripeWebhook",
+        "STRIPE_PRICE_PRO=$stripePricePro",
+        "STRIPE_PRICE_TEAM=$stripePriceTeam"
+    )
+}
 if ($AiProvider -eq "azure") {
     $secretArgs += @(
         "AZURE_OPENAI_ENDPOINT=$azureEndpoint",
@@ -138,9 +167,16 @@ finally { Pop-Location }
 
 # --- Done ------------------------------------------------------------------
 Step "Deployed"
-Write-Host "Frontend : $webUrl"      -ForegroundColor Green
-Write-Host "Backend  : $apiUrl/docs" -ForegroundColor Green
-Write-Host "Sign in  : $AdminEmail"  -ForegroundColor Green
+Write-Host "Frontend : $publicWebUrl" -ForegroundColor Green
+Write-Host "Backend  : $apiUrl/docs"  -ForegroundColor Green
+Write-Host "Sign in  : $AdminEmail"   -ForegroundColor Green
+if ($Stripe) {
+    Write-Host "`nStripe billing enabled. In the Stripe Dashboard, add a webhook endpoint:" -ForegroundColor Green
+    Write-Host "  $apiUrl/api/v1/billing/webhook" -ForegroundColor Green
+    Write-Host "  Events: checkout.session.completed, customer.subscription.*" -ForegroundColor DarkGray
+}
+Write-Host "`nIf the frontend runs on Vercel, set NEXT_PUBLIC_API_BASE_URL=$apiUrl there" -ForegroundColor DarkGray
+Write-Host "and pass -FrontendUrl <your-vercel-url> so backend CORS/redirects match." -ForegroundColor DarkGray
 Write-Host "`nTo enable native pgvector later: connect as the Postgres superuser," -ForegroundColor DarkGray
 Write-Host "run 'CREATE EXTENSION vector;' in the app database, then:" -ForegroundColor DarkGray
 Write-Host "  fly secrets set --app $ApiApp USE_PGVECTOR=true" -ForegroundColor DarkGray
